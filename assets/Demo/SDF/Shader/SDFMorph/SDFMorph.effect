@@ -1,0 +1,100 @@
+/*
+ * Author: GT<caogtaa@gmail.com>
+ * Date: 2021-03-29 17:04:32
+ * LastEditors: GT<caogtaa@gmail.com>
+ * LastEditTime: 2021-04-11 14:38:07
+*/
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+}%
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  
+  void main() {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_uv0;
+
+    v_color = a_color;
+    gl_Position = pos;
+  }
+}%
+
+CCProgram fs %{
+  #extension GL_OES_standard_derivatives: enable
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+  #include <sdf>
+  
+  in vec4 v_color;
+  in vec2 v_uv0;
+
+  uniform sampler2D texture;
+
+  // 生成圆形的SDF，SDF距离和纹理保持一致，圆周上dist=0
+  // uv: 范围[-1, 1]的uv坐标
+  // o: 圆心位置
+  // offset: 整体距离场往圆心靠近距离
+  float CircleSDF(vec2 uv, vec2 o, float offset) {
+    // dist范围[-1, 1]
+    float dist = distance(uv, o) * 2. - 1.;
+
+    // 环往内缩一点
+    dist += offset;
+
+    // 缩放SDF区间
+    return (-dist) * texSize.x * maxDist.y * 0.25;
+    // return (-dist) * texSize.x / maxDist.x / 4.;
+  }
+
+  void main()
+  {
+    vec2 uv = v_uv0.xy;
+
+    // o是以图片中心为原点的uv坐标，范围[-1, 1]
+    vec2 o = uv * 2.0 - 1.0;
+    o.y *= texSize.y * texSize.z;
+
+    float D = GetD(texture, uv);
+
+    // alpha区间[-1, 1], 0是图像边缘
+    float alpha = D * maxDist.y;
+
+    // 圆的outline
+    float circle = CircleSDF(o, vec2(0., 0.), 0.15);
+
+    // 混合两个sdf，根据时间来回切换
+    float t = cc_time.x;
+    alpha = mix(circle, alpha, smoothstep(0.35, 0.65, sin(t * 2.0) * 0.5 + 0.5));
+
+    // 显示边缘线并AA
+    float outlineWidth = 0.1;
+    float aastep = max(fwidth(alpha), 1e-8);
+    float mask = smoothstep(aastep, -aastep, abs(alpha) - outlineWidth);
+    gl_FragColor = vec4(0., 1., 0., mask);
+  }
+}%

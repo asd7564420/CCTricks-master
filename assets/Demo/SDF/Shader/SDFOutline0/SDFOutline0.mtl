@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.Material",
+  "_name": "SDFOutline0",
+  "_objFlags": 0,
+  "_native": "",
+  "_effectAsset": {
+    "__uuid__": "ac845fa7-253b-4890-b9b4-89fffa58e486"
+  },
+  "_techniqueIndex": 0,
+  "_techniqueData": {
+    "0": {
+      "props": {
+        "texSize": {
+          "__type__": "cc.Vec2",
+          "x": 98,
+          "y": 229
+        },
+        "texture": {
+          "__uuid__": "790bc609-ee34-419d-90b7-a17df6307f37"
+        }
+      },
+      "defines": {
+        "SDF_DUAL_CHANNEL": true,
+        "SDF_HI_RES": true
+      }
+    }
+  }
+}

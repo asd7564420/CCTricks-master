@@ -1,0 +1,107 @@
+// Copyright 2021 Cao Gaoting<caogtaa@gmail.com>
+// https://caogtaa.github.io
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
+/*
+ * Date: 2021-08-05 17:16:27
+ * LastEditors: GT<caogtaa@gmail.com>
+ * LastEditTime: 2021-08-09 22:30:51
+*/ 
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+}%
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  
+  void main() {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * pos;
+    v_uv0 = a_uv0;
+
+    v_color = a_color;
+    gl_Position = pos;
+  }
+}%
+
+CCProgram fs %{
+  #extension GL_OES_standard_derivatives: enable
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+  #include <sdf>
+  
+  in vec4 v_color;
+  in vec2 v_uv0;
+
+  uniform sampler2D texture;
+
+  void main( void )
+  {
+    vec2 st = v_uv0.xy;
+#define USE_VERSION 2
+#if USE_VERSION == 0
+    float D = texture2D(texture, st).a;
+    gl_FragColor = vec4(D);
+    return;
+    // D = 16.0 * (D - 0.50196);
+    D -= 0.50196;
+
+    // Perform anisotropic analytic antialiasing (fwidth() is slightly wrong)
+    // float aastep = length(vec2(dFdx(D), dFdy(D)));
+    float aastep = fwidth(D);   // fwidth = abs(dFdx(D)) + abs(dFdy(D))
+    
+    // 'pattern' is 1 where D>0, 0 where D<0, with proper AA around D=0.
+    float pattern = smoothstep(-aastep, aastep, D);
+    vec3 color = vec3(pattern);
+#elif USE_VERSION == 1
+    // 无损放大
+    float D = GetD(texture, st);
+
+    // Perform anisotropic analytic antialiasing (fwidth() is slightly wrong)
+    float aastep = length(vec2(dFdx(D), dFdy(D)));
+    
+    // 'pattern' is 1 where D>0, 0 where D<0, with proper AA around D=0.
+    float pattern = smoothstep(-aastep, aastep, D);
+    vec3 color = vec3(pattern);
+#elif USE_VERSION == 2
+    // 无损放大版本2，用fwidth会有轻微误差
+    float D = GetD(texture, st);
+    // D += 0.50196;
+    float aastep = fwidth(D);
+    aastep = max(aastep, 1e-8);   // never be 0, otherwise smoothstep result unexpectly
+
+    float edge = 0.;
+    // float pattern = smoothstep(edge-aastep, edge+aastep, D);
+    // vec3 color = vec3(pattern);
+    float mask = smoothstep(edge-aastep, edge+aastep, D);
+    vec3 color = vec3(mask);
+#endif
+
+    // Final fragment color
+    gl_FragColor = vec4(vec3(1.0), color.r);
+  }
+}%
